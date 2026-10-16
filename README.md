@@ -6,20 +6,6 @@ Bài tập nhóm môn **Nhập môn Trí tuệ nhân tạo**, Học viện Công
 **A\*** (tìm kiếm có thông tin trong không gian trạng thái). Dữ liệu đường phố lấy từ
 [OpenStreetMap](https://www.openstreetmap.org); giao diện viết bằng Python + Pygame.
 
-<!-- Thêm ảnh chụp màn hình: lưu ảnh vào docs/demo.png rồi bỏ dấu chú thích ở dòng dưới
-![Ảnh chụp ứng dụng](docs/demo.png)
--->
-
-## Thành viên nhóm
-
-| Họ và tên | Mã sinh viên | Công việc |
-|---|---|---|
-|  |  |  |
-|  |  |  |
-|  |  |  |
-
-Giảng viên hướng dẫn: ...
-
 ## Tính năng
 
 - Click chọn điểm đầu và điểm đích trên bản đồ, xem A* "loang" từng bước dọc theo các con đường thật.
