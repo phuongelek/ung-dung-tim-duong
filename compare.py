@@ -1,14 +1,7 @@
 """
-So sánh A* với BFS, DFS, UCS, Greedy trên bản đồ TP.HCM để lấy số liệu cho BÁO CÁO.
-(Ứng dụng chính chỉ dùng A*; file này chỉ phục vụ phần so sánh trong báo cáo.)
+So sánh A* với BFS, DFS, UCS, Greedy trên bản đồ, lưu kết quả vào results/compare_results.csv
 
-    python compare.py                 # 30 cặp điểm cho mỗi nhóm khoảng cách
-    python compare.py --trials 100 --seed 7
-
-Cặp điểm đầu/đích được chọn ngẫu nhiên và chia theo khoảng cách chim bay:
-    gần (0.5 - 1.5 km), trung bình (1.5 - 3 km), xa (trên 3 km)
-
-Kết quả in ra màn hình và lưu vào results/compare_results.csv
+    python compare.py --trials 50 --seed 7
 """
 
 import argparse
@@ -46,7 +39,7 @@ def run_band(name, prob, pairs):
             for a in ALGORITHMS}
     for s, g in pairs:
         results = {a: f(prob, s, g) for a, f in ALGORITHMS.items()}
-        best = results["UCS"].cost                 # UCS luôn tối ưu -> làm chuẩn
+        best = results["UCS"].cost  # UCS luôn tối ưu nên làm mốc
         for a, res in results.items():
             r = rows[a]
             r["expanded"].append(res.expanded)

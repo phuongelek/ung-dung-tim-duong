@@ -1,4 +1,4 @@
-"""Tìm đường trên bản đồ đường phố TP.HCM (OpenStreetMap) bằng A*."""
+"""Giao diện bản đồ và mô phỏng A*."""
 
 import math
 import os
@@ -13,28 +13,27 @@ from ui.common import (C, Button, draw_legend_item, draw_stat, draw_text, font,
                        format_number, wrap_text)
 
 SIDEBAR_W = 300
-SPEEDS = [2, 10, 30, 100, 400, 0]          # số nút mở rộng mỗi khung hình; 0 = tức thì
+SPEEDS = [2, 10, 30, 100, 400, 0]  # số bước mỗi khung hình, 0 = tức thì
 SPEED_NAMES = ["Rất chậm", "Chậm", "Vừa", "Nhanh", "Rất nhanh", "Tức thì"]
 
-# Độ rộng đường (mét thực tế) và giới hạn pixel theo cấp đường
+# độ rộng đường theo cấp
 ROAD_STYLE = {
     1: dict(color=C["road_minor"], meters=7, min_px=1, max_px=6),
     2: dict(color=C["road_mid"], meters=12, min_px=2, max_px=10),
     3: dict(color=C["road_major"], meters=18, min_px=3, max_px=14),
 }
 
-# Kiểu chữ tên đường theo cấp đường: (cỡ chữ, in đậm, màu)
+# (cỡ chữ, đậm, màu)
 LABEL_STYLE = {
     3: (13, True, (52, 56, 68)),
     2: (12, False, (60, 64, 76)),
     1: (11, False, (92, 98, 112)),
 }
-# Mức phóng to (so với lúc vừa khung) để bắt đầu hiện tên từng cấp đường
+# mức zoom bắt đầu hiện tên từng cấp đường
 LABEL_MIN_ZOOM = {3: 0.0, 2: 1.5, 1: 4.0}
 
 
 def _point_at(pts, cum, s):
-    """Điểm nằm ở vị trí s (pixel) dọc theo đường gấp khúc pts."""
     for i in range(1, len(cum)):
         if cum[i] >= s:
             seg = cum[i] - cum[i - 1]
@@ -73,7 +72,6 @@ class MapView:
         self._build_buttons()
         self.reset_search()
 
-    # ------------------------------------------------------------------ nút bấm
     def _build_buttons(self):
         x = self.side.left + 16
         w = SIDEBAR_W - 32
@@ -102,7 +100,6 @@ class MapView:
         self.buttons = [self.btn_run, *row1, *row2, self.btn_gmaps,
                         self.btn_slower, self.btn_faster]
 
-    # ------------------------------------------------------------------ dữ liệu
     def _load(self):
         if not os.path.exists(self.data_path):
             self.load_state = "missing"
@@ -113,12 +110,12 @@ class MapView:
             self._build_label_chains()
             self.fit_view()
             self.load_state = "ok"
-        except Exception as ex:          # dữ liệu hỏng hoặc sai định dạng
+        except Exception as ex:
             self.load_state = "error"
             self.error = str(ex)
 
     def _proj(self, lat, lon):
-        """Chiếu (lat, lon) sang mặt phẳng (mét) quanh tâm bản đồ."""
+        # lat/lon -> mét quanh tâm bản đồ
         return ((lon - self.lon0) * self.kx, (lat - self.lat0) * self.ky)
 
     def _project(self):
@@ -138,7 +135,7 @@ class MapView:
             else:
                 self.edge_pts[(u, v)] = [self.xy[u], self.xy[v]]
 
-        # Đường hai chiều chỉ cần vẽ nền một lần
+        # đường hai chiều chỉ vẽ một lần
         seen = set()
         self.roads = []
         for (u, v), (_, _, road_class, _) in p.edge_info.items():
@@ -161,23 +158,19 @@ class MapView:
         return min(xs), min(ys), max(xs), max(ys)
 
     def _oriented_pts(self, a, b):
-        """Hình học đoạn đường theo chiều a -> b."""
         if (a, b) in self.edge_pts:
             return self.edge_pts[(a, b)]
         return self.edge_pts[(b, a)][::-1]
 
     def _build_label_chains(self):
-        """
-        OSM chia một con đường thành nhiều đoạn ngắn giữa các giao lộ, quá ngắn để ghi chữ.
-        Ở đây nối các đoạn liền nhau cùng tên thành một "chuỗi" dài để đặt nhãn tên đường.
-        """
-        by_name = defaultdict(dict)     # tên -> {(u, v) không hướng: cấp đường}
+        # nối các đoạn liền nhau cùng tên thành đường dài để đủ chỗ ghi tên
+        by_name = defaultdict(dict)  # tên -> {(u, v): cấp đường}
         for (u, v), (_, name, road_class, _) in self.problem.edge_info.items():
             if name:
                 key = (min(u, v), max(u, v))
                 by_name[name][key] = max(road_class, by_name[name].get(key, 0))
 
-        self.label_chains = []          # (cấp, tên, điểm, xmin, ymin, xmax, ymax, độ dài)
+        self.label_chains = []  # (cấp, tên, điểm, bbox..., độ dài)
         for name, edges in by_name.items():
             adj = defaultdict(list)
             for (u, v) in edges:
@@ -189,7 +182,7 @@ class MapView:
                 pts = list(self._oriented_pts(a, b))
                 cls = edges[(min(a, b), max(a, b))]
                 used.add((min(a, b), max(a, b)))
-                while len(adj[b]) == 2:            # đi tiếp khi giao lộ chỉ nối hai đoạn cùng tên
+                while len(adj[b]) == 2:  # đi tiếp nếu giao lộ chỉ nối 2 đoạn
                     nxt = adj[b][0] if adj[b][0] != a else adj[b][1]
                     key = (min(b, nxt), max(b, nxt))
                     if key in used:
@@ -208,10 +201,9 @@ class MapView:
                     cls, pts = walk(a, b)
                     length = sum(math.dist(pts[i], pts[i + 1]) for i in range(len(pts) - 1))
                     self.label_chains.append((cls, name, pts, *self._bbox(pts), length))
-        # Đường cấp cao và dài được ưu tiên đặt nhãn trước
+        # đường lớn, dài được đặt tên trước
         self.label_chains.sort(key=lambda c: (-c[0], -c[7]))
 
-    # ------------------------------------------------------------------ khung nhìn
     def fit_view(self):
         if self.problem is None:
             return
@@ -256,18 +248,17 @@ class MapView:
         wx, wy = self.to_world(pos)
         return min(self.xy, key=lambda n: (self.xy[n][0] - wx) ** 2 + (self.xy[n][1] - wy) ** 2)
 
-    # ------------------------------------------------------------------ hành động
     def reset_search(self):
-        self.state = "edit"       # edit | running | done
+        self.state = "edit"  # edit | running | done
         self.steps = None
-        self.explored = []        # các cạnh (u, v) A* đã xét, theo thứ tự
+        self.explored = []  # các cạnh A* đã xét
         self.current = None
         self.expanded_count = 0
         self.result = None
         self.timed = None
         self.overlay_dirty = True
         self.labels_dirty = True
-        self.message = None       # (nội dung, màu)
+        self.message = None  # (nội dung, màu)
 
     def clear_points(self):
         self.start = self.goal = None
@@ -317,7 +308,6 @@ class MapView:
         self.state = "done"
 
     def open_google_maps(self):
-        """Mở cùng điểm đầu/đích trên Google Maps (trình duyệt) để đối chiếu kết quả."""
         if self.problem is None or self.start is None or self.goal is None:
             self.message = ("Hãy chọn đủ điểm đầu và điểm đích trước.", C["goal"])
             return
@@ -349,11 +339,10 @@ class MapView:
                     return
                 self.goal = node
         if live and self.start is not None and self.goal is not None:
-            self.run(instant=True)          # đã có kết quả -> tính lại ngay
+            self.run(instant=True)  # đã có kết quả thì tính lại luôn
         else:
             self.reset_search()
 
-    # ------------------------------------------------------------------ sự kiện
     def handle_event(self, event):
         for b in self.buttons:
             if b.handle_event(event):
@@ -405,7 +394,6 @@ class MapView:
             self.panning = False
             self.pan_offset = (0, 0)
 
-    # ------------------------------------------------------------------ cập nhật
     def update(self):
         if self.load_state == "loading":
             self._load()
@@ -425,7 +413,6 @@ class MapView:
             self.expanded_count += 1
             self.current = node
 
-    # ------------------------------------------------------------------ vẽ nền đường
     def _road_width(self, road_class):
         st = ROAD_STYLE[road_class]
         return int(min(max(st["meters"] * self.scale, st["min_px"]), st["max_px"]))
@@ -434,10 +421,10 @@ class MapView:
         w, h = self.map_rect.size
         self.base = pygame.Surface((w, h))
         self.base.fill(C["map_bg"])
-        wx0, wy0, wx1, wy1 = self.visible_world(margin_px=300)   # chừa thêm cho lúc kéo
+        wx0, wy0, wx1, wy1 = self.visible_world(margin_px=300)  # chừa lề khi kéo
         visible = [r for r in self.roads
                    if r[4] >= wx0 and r[2] <= wx1 and r[5] >= wy0 and r[3] <= wy1]
-        # Viền cho đường lớn trước, rồi lần lượt các cấp đường (nhỏ dưới, lớn trên)
+        # vẽ viền đường lớn trước, rồi đường nhỏ đến đường lớn
         major_w = self._road_width(3)
         for road_class, pts, *_ in visible:
             if road_class == 3:
@@ -459,9 +446,8 @@ class MapView:
             self._draw_explored_edge(u, v)
         self.overlay_dirty = False
 
-    # ------------------------------------------------------------------ tên đường
     def _label_image(self, text, style):
-        """Ảnh chữ (đã cache). style: cấp đường 1-3, hoặc "route" cho nhãn trên lộ trình."""
+        # style: cấp đường 1-3 hoặc "route" (nhãn trên lộ trình)
         key = (text, style)
         img = self._label_cache.get(key)
         if img is not None:
@@ -480,7 +466,7 @@ class MapView:
             halo = f.render(text, True, C["map_bg"])
             w, h = fg.get_size()
             img = pygame.Surface((w + 4, h + 4), pygame.SRCALPHA)
-            for dx in (-2, -1, 0, 1, 2):          # viền sáng quanh chữ cho dễ đọc
+            for dx in (-2, -1, 0, 1, 2):  # viền sáng quanh chữ
                 for dy in (-2, -1, 0, 1, 2):
                     if dx or dy:
                         img.blit(halo, (2 + dx, 2 + dy))
@@ -489,10 +475,7 @@ class MapView:
         return img
 
     def _place_labels(self, target, pts, img, placed, max_count, gap, straightness):
-        """
-        Đặt tối đa max_count nhãn dọc đường gấp khúc pts (tọa độ màn hình).
-        Nhãn được xoay theo hướng đường, chỉ đặt ở khúc đủ thẳng và không đè nhãn khác.
-        """
+        # đặt tên xoay theo hướng đường, chỉ ở khúc đủ thẳng và không đè nhãn khác
         cum = [0.0]
         for i in range(1, len(pts)):
             cum.append(cum[-1] + math.dist(pts[i - 1], pts[i]))
@@ -503,7 +486,7 @@ class MapView:
         w, h = self.map_rect.size
         bounds = pygame.Rect(4, 4, w - 8, h - 8)
 
-        # Thử từ giữa đường ra hai phía, cách nhau một khoảng gap
+        # thử từ giữa đường ra hai bên
         step = need + gap
         candidates = [total / 2]
         k = 1
@@ -516,10 +499,10 @@ class MapView:
                 continue
             a = _point_at(pts, cum, s - need / 2)
             b = _point_at(pts, cum, s + need / 2)
-            if math.dist(a, b) < need * straightness:      # khúc quá cong
+            if math.dist(a, b) < need * straightness:  # khúc quá cong
                 continue
             angle = math.degrees(math.atan2(-(b[1] - a[1]), b[0] - a[0]))
-            if angle > 90:                                  # không để chữ bị lộn ngược
+            if angle > 90:  # không để chữ lộn ngược
                 angle -= 180
             elif angle < -90:
                 angle += 180
@@ -538,7 +521,6 @@ class MapView:
         return count
 
     def _route_runs(self):
-        """Chia lộ trình thành các đoạn liên tiếp cùng tên đường."""
         runs = []
         path = self.result.path
         for u, v in zip(path, path[1:]):
@@ -559,14 +541,13 @@ class MapView:
             return
         placed = []
 
-        # 1) Tên đường dọc lộ trình A* tìm được: ưu tiên cao nhất
+        # tên đường trên lộ trình đặt trước
         if self.result is not None and self.result.found:
             for name, wpts in self._route_runs():
                 spts = [self.to_local(x, y) for x, y in wpts]
                 self._place_labels(self.route_labels, spts, self._label_image(name, "route"),
                                    placed, max_count=2, gap=500, straightness=0.75)
 
-        # 2) Tên các đường khác, tùy mức phóng to
         zoom = self.scale / self.fit_scale
         wx0, wy0, wx1, wy1 = self.visible_world()
         for cls, name, wpts, x0, y0, x1, y1, length in self.label_chains:
@@ -574,15 +555,14 @@ class MapView:
                 continue
             if x1 < wx0 or x0 > wx1 or y1 < wy0 or y0 > wy1:
                 continue
-            if length * self.scale < 60:               # quá ngắn trên màn hình
+            if length * self.scale < 60:  # quá ngắn
                 continue
             spts = [self.to_local(x, y) for x, y in wpts]
             self._place_labels(self.road_labels, spts, self._label_image(name, cls),
                                placed, max_count=3, gap=320, straightness=0.9)
 
-    # ------------------------------------------------------------------ vẽ tổng thể
     def _nice_scale_bar(self):
-        target = 110 / self.scale       # khoảng 110 px tính ra mét
+        target = 110 / self.scale
         for m in (20, 50, 100, 200, 500, 1000, 2000, 5000, 10000):
             if m >= target * 0.6:
                 return m
@@ -593,7 +573,7 @@ class MapView:
         pygame.draw.rect(surf, C["map_bg"], self.map_rect)
 
         if self.load_state == "pending":
-            self.load_state = "loading"     # tải ở khung hình kế tiếp, sau khi đã vẽ chữ
+            self.load_state = "loading"  # vẽ chữ "đang tải" trước rồi mới tải
         if self.load_state in ("pending", "loading"):
             draw_text(surf, "Đang tải dữ liệu bản đồ...", self.map_rect.center, 18,
                       C["muted"], anchor="center")
@@ -641,7 +621,6 @@ class MapView:
             x, y = self.to_local(*self.xy[n])
             return (x + ox, y + oy)
 
-        # Đường đi tìm được
         if self.result and self.result.found and len(self.result.path) > 1:
             pts = []
             for u, v in zip(self.result.path, self.result.path[1:]):
@@ -666,7 +645,7 @@ class MapView:
             pygame.draw.circle(surf, color, p, 11)
             draw_text(surf, label, p, 13, (255, 255, 255), bold=True, anchor="center")
 
-        # Thước tỉ lệ + ghi công nguồn dữ liệu
+        # thước tỉ lệ
         meters = self._nice_scale_bar()
         px = meters * self.scale
         bx, by = self.map_rect.left + 16, self.map_rect.bottom - 18
@@ -704,7 +683,6 @@ class MapView:
                   anchor="center")
 
         y = self.controls_bottom + 12
-        # Hướng dẫn chọn điểm
         if ready:
             if self.message:
                 hint, color = self.message
@@ -762,7 +740,6 @@ class MapView:
         else:
             draw_text(surf, "–", (x, y), 13, C["muted"])
 
-        # Chú thích + phím tắt ở đáy
         y = s.bottom - 86
         draw_legend_item(surf, C["explored"], "Đoạn A* đã xét", x, y)
         draw_legend_item(surf, C["path_line"], "Đường đi", x + w // 2 + 10, y)

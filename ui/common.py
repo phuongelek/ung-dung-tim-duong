@@ -1,4 +1,4 @@
-"""Màu sắc, phông chữ, nút bấm và các tiện ích vẽ dùng chung."""
+"""Màu, font, nút bấm dùng chung."""
 
 import pygame
 
@@ -49,7 +49,6 @@ def draw_text(surf, text, pos, size=15, color=None, bold=False, anchor="topleft"
 
 
 def wrap_text(text, size, max_width, bold=False):
-    """Ngắt dòng theo chiều rộng tối đa (pixel)."""
     f = font(size, bold)
     lines, cur = [], ""
     for word in text.split(" "):
@@ -67,7 +66,7 @@ def wrap_text(text, size, max_width, bold=False):
 
 class Button:
     def __init__(self, label, action, primary=False, height=32):
-        self.label = label          # chuỗi hoặc hàm trả về chuỗi (nhãn động)
+        self.label = label  # str hoặc hàm trả về str
         self.action = action
         self.primary = primary
         self.height = height
@@ -102,7 +101,6 @@ class Button:
 
 
 def layout_buttons(buttons, x, y, width, gap=6, columns=1):
-    """Xếp nút thành lưới; trả về tọa độ y kế tiếp."""
     col_w = (width - gap * (columns - 1)) // columns
     i = 0
     while i < len(buttons):

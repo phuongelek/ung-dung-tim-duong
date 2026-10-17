@@ -1,19 +1,7 @@
 """
-Thuật toán A* tổng quát cho bài toán tìm kiếm trong không gian trạng thái.
-
-A* không cần biết bài toán là mê cung hay bản đồ. Nó chỉ cần một đối tượng
-"problem" cung cấp hai phương thức:
-
-    problem.neighbors(state)   -> lặp ra các cặp (trạng_thái_kế_tiếp, chi_phí)
-    problem.heuristic(a, b)    -> ước lượng chi phí còn lại h(n) từ a đến b
-
-Hàm đánh giá:   f(n) = g(n) + h(n)
-    g(n): chi phí thực đã đi từ trạng thái đầu đến n
-    h(n): ước lượng chi phí từ n đến đích (heuristic)
-
-Nếu h(n) chấp nhận được (không bao giờ đánh giá quá chi phí thật) và nhất quán
-(h(a) <= c(a, b) + h(b)), A* dạng tìm kiếm trên đồ thị (có tập CLOSED) luôn trả
-về đường đi có chi phí nhỏ nhất.
+Thuật toán A*. Đối tượng problem cần có:
+    neighbors(state) -> các cặp (trạng thái kế, chi phí)
+    heuristic(a, b)  -> ước lượng chi phí từ a đến b
 """
 
 import heapq
@@ -25,20 +13,19 @@ from dataclasses import dataclass, field
 
 @dataclass
 class SearchResult:
-    found: bool                 # có tìm thấy đường hay không
-    path: list                  # danh sách trạng thái từ đầu đến đích
-    cost: float                 # tổng chi phí đường đi
-    expanded: int               # số nút đã mở rộng (đưa vào CLOSED)
+    found: bool
+    path: list
+    cost: float
+    expanded: int               # số nút đã mở rộng
     generated: int              # số lần đưa nút vào OPEN
-    max_frontier: int           # kích thước lớn nhất của hàng đợi OPEN
-    time_ms: float = 0.0        # thời gian tính toán (mili giây)
-    g: dict = field(default_factory=dict, repr=False)       # g(n) của mọi nút đã gặp
-    parent: dict = field(default_factory=dict, repr=False)  # cha của từng nút
-    closed: set = field(default_factory=set, repr=False)    # tập nút đã mở rộng
+    max_frontier: int
+    time_ms: float = 0.0
+    g: dict = field(default_factory=dict, repr=False)
+    parent: dict = field(default_factory=dict, repr=False)
+    closed: set = field(default_factory=set, repr=False)
 
 
 def reconstruct_path(parent, goal):
-    """Lần ngược theo con trỏ cha để dựng lại đường đi."""
     path = []
     node = goal
     while node is not None:
@@ -49,17 +36,11 @@ def reconstruct_path(parent, goal):
 
 
 def astar_steps(problem, start, goal):
-    """
-    A* dạng generator để phục vụ mô phỏng từng bước.
-
-    Mỗi lần mở rộng một nút, generator trả ra (nút_vừa_mở_rộng, [các_nút_mới_vào_OPEN]).
-    Khi kết thúc, kết quả SearchResult nằm trong StopIteration.value.
-    """
-    counter = itertools.count()          # phá thế hòa ổn định khi f và h bằng nhau
+    """Chạy A* từng bước: yield (nút vừa mở rộng, các nút mới vào OPEN), return SearchResult."""
+    counter = itertools.count()  # dùng khi f và h bằng nhau
     h_start = problem.heuristic(start, goal)
 
-    # Mỗi phần tử OPEN: (f, h, thứ_tự, trạng_thái).
-    # Khi f bằng nhau, ưu tiên nút có h nhỏ hơn (gần đích hơn) để giảm số nút xét.
+    # OPEN: (f, h, thứ tự, trạng thái), f bằng nhau thì ưu tiên h nhỏ hơn
     open_heap = [(h_start, h_start, next(counter), start)]
     g = {start: 0.0}
     parent = {start: None}
@@ -72,12 +53,11 @@ def astar_steps(problem, start, goal):
     while open_heap:
         _, _, _, node = heapq.heappop(open_heap)
 
-        # Một nút có thể nằm trong OPEN nhiều lần (khi tìm được g tốt hơn).
-        # Bản cũ hơn sẽ bị bỏ qua ở đây ("lazy deletion").
+        # bản cũ của nút đã xét, bỏ qua
         if node in closed:
             continue
 
-        # Kiểm tra đích khi LẤY RA khỏi OPEN (không phải khi sinh ra) -> đảm bảo tối ưu.
+        # kiểm tra đích khi lấy ra khỏi OPEN mới đảm bảo tối ưu
         if node == goal:
             return SearchResult(True, reconstruct_path(parent, goal), g[goal],
                                 expanded, generated, max_frontier,
@@ -91,7 +71,7 @@ def astar_steps(problem, start, goal):
             if nxt in closed:
                 continue
             new_g = g[node] + step_cost
-            if new_g < g.get(nxt, math.inf):          # tìm được đường tốt hơn đến nxt
+            if new_g < g.get(nxt, math.inf):  # đường mới tốt hơn
                 g[nxt] = new_g
                 parent[nxt] = node
                 h = problem.heuristic(nxt, goal)
@@ -104,13 +84,11 @@ def astar_steps(problem, start, goal):
 
         yield node, opened
 
-    # OPEN rỗng mà chưa gặp đích -> không có đường đi
     return SearchResult(False, [], math.inf, expanded, generated, max_frontier,
                         g=g, parent=parent, closed=closed)
 
 
 def astar(problem, start, goal):
-    """Chạy A* đến khi xong (không mô phỏng) và đo thời gian."""
     t0 = time.perf_counter()
     steps = astar_steps(problem, start, goal)
     while True:

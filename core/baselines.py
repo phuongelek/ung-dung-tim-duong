@@ -1,8 +1,4 @@
-"""
-Các thuật toán khác (BFS, DFS, UCS, Greedy) – CHỈ dùng trong compare.py để lấy
-số liệu so sánh cho báo cáo. Ứng dụng chính chỉ dùng A*.
-Mọi hàm đều trả về SearchResult giống A* để so sánh công bằng.
-"""
+"""BFS, DFS, UCS, Greedy để so sánh với A* (dùng trong compare.py)."""
 
 import heapq
 import itertools
@@ -26,7 +22,6 @@ def _done(found, parent, g, goal, expanded, generated, max_frontier, t0, closed)
 
 
 def bfs(problem, start, goal):
-    """Tìm kiếm theo chiều rộng: ít BƯỚC nhất, không xét chi phí."""
     t0 = time.perf_counter()
     parent, g = {start: None}, {start: 0.0}
     queue = deque([start])
@@ -44,7 +39,7 @@ def bfs(problem, start, goal):
             parent[nxt] = node
             g[nxt] = g[node] + cost
             generated += 1
-            if nxt == goal:                       # kiểm tra đích ngay khi sinh ra
+            if nxt == goal:  # BFS kiểm tra đích khi sinh ra
                 return _done(True, parent, g, goal, expanded, generated, max_frontier, t0, closed)
             queue.append(nxt)
         max_frontier = max(max_frontier, len(queue))
@@ -52,7 +47,6 @@ def bfs(problem, start, goal):
 
 
 def dfs(problem, start, goal):
-    """Tìm kiếm theo chiều sâu (dạng đồ thị, dùng ngăn xếp)."""
     t0 = time.perf_counter()
     stack = [(start, None, 0.0)]
     parent, g, closed = {}, {}, set()
@@ -76,7 +70,7 @@ def dfs(problem, start, goal):
 
 
 class _ZeroHeuristic:
-    """Bọc bài toán với h(n) = 0  ->  A* trở thành UCS (Dijkstra)."""
+    """h = 0 thì A* chính là UCS."""
 
     def __init__(self, problem):
         self.problem = problem
@@ -89,12 +83,10 @@ class _ZeroHeuristic:
 
 
 def ucs(problem, start, goal):
-    """Tìm kiếm chi phí đồng nhất = A* với h(n) = 0."""
     return astar(_ZeroHeuristic(problem), start, goal)
 
 
 def greedy(problem, start, goal):
-    """Tham lam tốt nhất đầu tiên: chỉ dùng f(n) = h(n)."""
     t0 = time.perf_counter()
     counter = itertools.count()
     heap = [(problem.heuristic(start, goal), next(counter), start)]
@@ -109,7 +101,7 @@ def greedy(problem, start, goal):
         closed.add(node)
         expanded += 1
         for nxt, cost in problem.neighbors(node):
-            if nxt in parent:                     # đã gặp rồi thì không cập nhật lại
+            if nxt in parent:  # greedy không cập nhật lại nút đã gặp
                 continue
             parent[nxt] = node
             g[nxt] = g[node] + cost

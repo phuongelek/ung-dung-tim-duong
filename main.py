@@ -1,9 +1,4 @@
-"""
-Ứng dụng tìm đường trên bản đồ TP.HCM bằng thuật toán A*
-(dữ liệu đường phố: OpenStreetMap).
-
-Chạy:  python main.py
-"""
+"""Tìm đường bằng A* trên bản đồ TP.HCM. Chạy: python main.py"""
 
 import os
 import sys
@@ -22,7 +17,7 @@ MAP_FILE = os.path.join(ROOT, "data", "hcm_map.json")
 
 class App:
     def __init__(self):
-        pygame.display.init()       # không cần âm thanh nên chỉ khởi tạo màn hình và phông chữ
+        pygame.display.init()  # không dùng âm thanh
         pygame.font.init()
         pygame.display.set_caption("Tìm đường bằng thuật toán A* – Bản đồ TP.HCM")
         self.screen = pygame.display.set_mode((WIDTH, HEIGHT))
